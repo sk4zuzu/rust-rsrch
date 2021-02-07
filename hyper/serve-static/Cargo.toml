@@ -1,0 +1,26 @@
+[package]
+name = "serve-static"
+version = "0.1.0"
+authors = ["sk4zuzu <sk4zuzu@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "serve_static"
+path = "./src/lib.rs"
+
+[[bin]]
+name = "serve-static-bin"
+path = "./src/bin.rs"
+
+[dev-dependencies]
+hex = "*"
+rand = "*"
+sha-1 = "*"
+tempfile = "*"
+
+[dependencies]
+futures-util = "*"
+hyper = { version = "*", features = ["full"] }
+log = "*"
+pretty_env_logger = "*"
+tokio = { version = "*", features = ["full"] }
