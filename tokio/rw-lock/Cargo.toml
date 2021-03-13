@@ -1,0 +1,22 @@
+[package]
+name = "rw-lock"
+version = "0.1.0"
+authors = ["sk4zuzu <sk4zuzu@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "rw-lock-bin"
+path = "./src/bin.rs"
+
+[dev-dependencies]
+
+[dependencies]
+anyhow = "*"
+futures = "*"
+hex = "*"
+log = "*"
+pretty_env_logger = "*"
+rand = "*"
+sha-1 = "*"
+tempdir = "*"
+tokio = { version = "*", features = ["full"] }
