@@ -1,14 +1,14 @@
 use anyhow::Result;
 use hex;
+use nix::fcntl::{FlockArg, flock};
 use sha1::{Digest, Sha1};
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::thread::current;
 use tempdir::TempDir;
 use tokio::fs::{File, OpenOptions, rename};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::spawn;
-use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
 const BUF_SIZE: usize = 1024;
@@ -33,7 +33,7 @@ async fn open_file_wo(path: &Path) -> Result<File> {
     Ok(file)
 }
 
-async fn write_or_read(path: PathBuf, rw: Arc<RwLock<()>>) -> Result<()> {
+async fn write_or_read(path: PathBuf) -> Result<()> {
     log::debug!("{:?}", current());
 
     let mut buf = vec![0 as u8; BUF_SIZE].into_boxed_slice();
@@ -61,15 +61,15 @@ async fn write_or_read(path: PathBuf, rw: Arc<RwLock<()>>) -> Result<()> {
     let tmp_path = dir.join(tmp_name);
 
     if !tmp_path.exists() {
-        if let Ok(guard) = rw.try_write() {
+        let mut tmp_file = open_file_wo(tmp_path.as_path()).await?;
+        if let Ok(()) = flock(tmp_file.as_raw_fd(), FlockArg::LockExclusiveNonblock) {
             log::debug!("W");
-            let mut tmp_file = open_file_wo(tmp_path.as_path()).await?;
-            drop(guard);
             for _ in 1..=256_i32 {
                 let payload = b"kyk-lyk\r\n";
                 tmp_file.write(&payload[..]).await?;
                 hasher.update(&payload[..]);
             }
+            drop(tmp_file);
             let hash = hasher.finalize();
             log::debug!("{:?}: {:?} (W)", path.as_path(), hex::encode(hash.as_slice()));
             rename(tmp_path.as_path(), path.as_path()).await?;
@@ -78,7 +78,6 @@ async fn write_or_read(path: PathBuf, rw: Arc<RwLock<()>>) -> Result<()> {
     }
 
     {
-        let _guard = rw.read().await;
         log::debug!("R2");
         let mut tmp_file = open_file_ro(tmp_path.as_path()).await?;
         while tmp_path.exists() {
@@ -91,6 +90,7 @@ async fn write_or_read(path: PathBuf, rw: Arc<RwLock<()>>) -> Result<()> {
                 }
             }
         }
+        drop(tmp_file);
         let hash = hasher.finalize();
         log::debug!("{:?}: {:?} (R2)", tmp_path.as_path(), hex::encode(hash.as_slice()));
         return Ok(())
@@ -107,52 +107,50 @@ async fn main() -> Result<()> {
     let path = work_dir.path().join("1");
     log::info!("Path {:?}", path.as_path());
 
-    let rw = Arc::new(RwLock::new(()));
-
     {
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
         sleep(Duration::from_secs(4)).await;
     }
 
     {
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
         sleep(Duration::from_secs(4)).await;
     }
 
     {
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
-        spawn(write_or_read(path.clone(), rw.clone()));
-        spawn(write_or_read(path.clone(), rw.clone()));
+        spawn(write_or_read(path.clone()));
+        spawn(write_or_read(path.clone()));
 
         sleep(Duration::from_secs(4)).await;
     }
